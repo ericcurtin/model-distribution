@@ -52,16 +52,16 @@ func NormalizeReference(reference string) string {
 
 	// Get the repository part of the reference
 	repository := ref.Context().RepositoryStr()
-	
+
 	// Docker Hub adds "library/" prefix automatically to simple names
 	// We want to replace "library/" with our official prefix "ai/"
 	if strings.HasPrefix(repository, "library/") {
 		// Extract the original name without library prefix
 		originalName := repository[8:] // len("library/") = 8
-		
+
 		// Construct the normalized reference with our prefix in short form
 		normalizedRepo := officialRepoPrefix + originalName
-		
+
 		// Return in short form (without registry prefix for Docker Hub)
 		if tagged, ok := ref.(name.Tag); ok {
 			if tagged.TagStr() == "latest" && !strings.Contains(reference, ":") {
@@ -72,7 +72,7 @@ func NormalizeReference(reference string) string {
 		} else if digested, ok := ref.(name.Digest); ok {
 			return normalizedRepo + "@" + digested.DigestStr()
 		}
-		
+
 		// Fallback for references without tag/digest (should get :latest)
 		return normalizedRepo
 	}
@@ -90,15 +90,15 @@ func addPrefixFallback(reference string) string {
 			return officialRepoPrefix + parts[0] + "@" + parts[1]
 		}
 	}
-	
-	// Handle tag references  
+
+	// Handle tag references
 	if strings.Contains(reference, ":") {
 		parts := strings.Split(reference, ":")
 		if len(parts) >= 2 {
 			return officialRepoPrefix + parts[0] + ":" + strings.Join(parts[1:], ":")
 		}
 	}
-	
+
 	// Simple name without tag/digest
 	return officialRepoPrefix + reference
 }

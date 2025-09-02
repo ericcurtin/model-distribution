@@ -360,7 +360,7 @@ func (c *Client) Tag(source string, target string) error {
 func (c *Client) PushModel(ctx context.Context, tag string, progressWriter io.Writer) (err error) {
 	// Normalize the tag to add default officialRepoPrefix if needed
 	normalizedTag := files.NormalizeReference(tag)
-	
+
 	// Parse the tag
 	target, err := c.registry.NewTarget(normalizedTag)
 	if err != nil {
