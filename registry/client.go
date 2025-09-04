@@ -13,6 +13,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
 
+	"github.com/docker/model-distribution/internal/naming"
 	"github.com/docker/model-distribution/internal/progress"
 	"github.com/docker/model-distribution/types"
 )
@@ -26,10 +27,11 @@ var (
 )
 
 type Client struct {
-	transport http.RoundTripper
-	userAgent string
-	keychain  authn.Keychain
-	auth      authn.Authenticator
+	transport        http.RoundTripper
+	userAgent        string
+	keychain         authn.Keychain
+	auth             authn.Authenticator
+	defaultNamespace *naming.DefaultNamespace
 }
 
 type ClientOption func(*Client)
@@ -61,6 +63,14 @@ func WithAuthConfig(username, password string) ClientOption {
 	}
 }
 
+func WithDefaultNamespace(registry string) ClientOption {
+	return func(c *Client) {
+		if registry != "" {
+			c.defaultNamespace = &naming.DefaultNamespace{Registry: registry}
+		}
+	}
+}
+
 func NewClient(opts ...ClientOption) *Client {
 	client := &Client{
 		transport: remote.DefaultTransport,
@@ -75,7 +85,7 @@ func NewClient(opts ...ClientOption) *Client {
 
 func (c *Client) Model(ctx context.Context, reference string) (types.ModelArtifact, error) {
 	// Parse the reference
-	ref, err := name.ParseReference(reference)
+	ref, err := c.defaultNamespace.ParseReference(reference)
 	if err != nil {
 		return nil, NewReferenceError(reference, err)
 	}
@@ -115,7 +125,7 @@ func (c *Client) Model(ctx context.Context, reference string) (types.ModelArtifa
 
 func (c *Client) BlobURL(reference string, digest v1.Hash) (string, error) {
 	// Parse the reference
-	ref, err := name.ParseReference(reference)
+	ref, err := c.defaultNamespace.ParseReference(reference)
 	if err != nil {
 		return "", NewReferenceError(reference, err)
 	}
@@ -129,7 +139,7 @@ func (c *Client) BlobURL(reference string, digest v1.Hash) (string, error) {
 
 func (c *Client) BearerToken(ctx context.Context, reference string) (string, error) {
 	// Parse the reference
-	ref, err := name.ParseReference(reference)
+	ref, err := c.defaultNamespace.ParseReference(reference)
 	if err != nil {
 		return "", NewReferenceError(reference, err)
 	}
@@ -157,24 +167,26 @@ func (c *Client) BearerToken(ctx context.Context, reference string) (string, err
 }
 
 type Target struct {
-	reference name.Reference
-	transport http.RoundTripper
-	userAgent string
-	keychain  authn.Keychain
-	auth      authn.Authenticator
+	reference        name.Reference
+	transport        http.RoundTripper
+	userAgent        string
+	keychain         authn.Keychain
+	auth             authn.Authenticator
+	defaultNamespace *naming.DefaultNamespace
 }
 
 func (c *Client) NewTarget(tag string) (*Target, error) {
-	ref, err := name.NewTag(tag)
+	ref, err := c.defaultNamespace.ParseTag(tag)
 	if err != nil {
 		return nil, fmt.Errorf("invalid tag: %q: %w", tag, err)
 	}
 	return &Target{
-		reference: ref,
-		transport: c.transport,
-		userAgent: c.userAgent,
-		keychain:  c.keychain,
-		auth:      c.auth,
+		reference:        ref,
+		transport:        c.transport,
+		userAgent:        c.userAgent,
+		keychain:         c.keychain,
+		auth:             c.auth,
+		defaultNamespace: c.defaultNamespace,
 	}, nil
 }
 

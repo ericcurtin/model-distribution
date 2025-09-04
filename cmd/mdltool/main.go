@@ -32,13 +32,15 @@ const (
 )
 
 var (
-	storePath string
-	showHelp  bool
-	showVer   bool
+	storePath       string
+	defaultRegistry string
+	showHelp        bool
+	showVer         bool
 )
 
 func init() {
 	flag.StringVar(&storePath, "store-path", defaultStorePath, "Path to the model store")
+	flag.StringVar(&defaultRegistry, "default-registry", "", "Default registry for model references (e.g., registry.example.com)")
 	flag.BoolVar(&showHelp, "help", false, "Show help")
 	flag.BoolVar(&showVer, "version", false, "Show version")
 }
@@ -67,6 +69,10 @@ func main() {
 	clientOpts := []distribution.Option{
 		distribution.WithStoreRootPath(absStorePath),
 		distribution.WithUserAgent("model-distribution-tool/" + version),
+	}
+
+	if defaultRegistry != "" {
+		clientOpts = append(clientOpts, distribution.WithDefaultRegistry(defaultRegistry))
 	}
 
 	if username := os.Getenv("DOCKER_USERNAME"); username != "" {
