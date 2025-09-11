@@ -3,6 +3,7 @@ package builder_test
 import (
 	"context"
 	"io"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -139,6 +140,53 @@ func TestWithMultimodalProjectorChaining(t *testing.T) {
 
 	// Note: We can't directly test GGUFPath() and MMPROJPath() on ModelArtifact interface
 	// but we can verify the layers were added with correct media types above
+}
+
+func TestFromVLLM(t *testing.T) {
+	// Create a temporary vLLM model file for testing
+	tmpDir := t.TempDir()
+	modelPath := filepath.Join(tmpDir, "test-model.safetensors")
+	
+	// Create a dummy model file
+	if err := os.WriteFile(modelPath, []byte("dummy vllm model content"), 0644); err != nil {
+		t.Fatalf("Failed to create test model file: %v", err)
+	}
+
+	// Create a builder from a vLLM file
+	b, err := builder.FromVLLM(modelPath)
+	if err != nil {
+		t.Fatalf("Failed to create builder from vLLM: %v", err)
+	}
+
+	// Build the model
+	target := &fakeTarget{}
+	if err := b.Build(t.Context(), target, nil); err != nil {
+		t.Fatalf("Failed to build model: %v", err)
+	}
+
+	// Verify the model has the expected format
+	config, err := target.artifact.Config()
+	if err != nil {
+		t.Fatalf("Failed to get config: %v", err)
+	}
+
+	if config.Format != types.FormatVLLM {
+		t.Errorf("Expected format %s, got %s", types.FormatVLLM, config.Format)
+	}
+
+	// Verify the model has one vLLM layer
+	manifest, err := target.artifact.Manifest()
+	if err != nil {
+		t.Fatalf("Failed to get manifest: %v", err)
+	}
+
+	if len(manifest.Layers) != 1 {
+		t.Fatalf("Expected 1 layer, got %d", len(manifest.Layers))
+	}
+
+	if manifest.Layers[0].MediaType != types.MediaTypeVLLM {
+		t.Errorf("Expected layer media type %s, got %s", types.MediaTypeVLLM, manifest.Layers[0].MediaType)
+	}
 }
 
 var _ builder.Target = &fakeTarget{}

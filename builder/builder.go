@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/docker/model-distribution/internal/gguf"
+	"github.com/docker/model-distribution/internal/vllm"
 	"github.com/docker/model-distribution/internal/mutate"
 	"github.com/docker/model-distribution/internal/partial"
 	"github.com/docker/model-distribution/types"
@@ -19,6 +20,17 @@ type Builder struct {
 // FromGGUF returns a *Builder that builds a model artifacts from a GGUF file
 func FromGGUF(path string) (*Builder, error) {
 	mdl, err := gguf.NewModel(path)
+	if err != nil {
+		return nil, err
+	}
+	return &Builder{
+		model: mdl,
+	}, nil
+}
+
+// FromVLLM returns a *Builder that builds a model artifacts from a vLLM model file or directory
+func FromVLLM(path string) (*Builder, error) {
+	mdl, err := vllm.NewModel(path)
 	if err != nil {
 		return nil, err
 	}

@@ -69,6 +69,10 @@ func GGUFPaths(i WithLayers) ([]string, error) {
 	return layerPathsByMediaType(i, types.MediaTypeGGUF)
 }
 
+func VLLMPaths(i WithLayers) ([]string, error) {
+	return layerPathsByMediaType(i, types.MediaTypeVLLM)
+}
+
 func MMPROJPath(i WithLayers) (string, error) {
 	paths, err := layerPathsByMediaType(i, types.MediaTypeMultimodalProjector)
 	if err != nil {

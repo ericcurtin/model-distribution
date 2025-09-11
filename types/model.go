@@ -7,6 +7,7 @@ import (
 type Model interface {
 	ID() (string, error)
 	GGUFPaths() ([]string, error)
+	VLLMPaths() ([]string, error)
 	MMPROJPath() (string, error)
 	Config() (Config, error)
 	Tags() []string
@@ -23,6 +24,7 @@ type ModelArtifact interface {
 type ModelBundle interface {
 	RootDir() string
 	GGUFPath() string
+	VLLMPath() string
 	MMPROJPath() string
 	RuntimeConfig() Config
 }
