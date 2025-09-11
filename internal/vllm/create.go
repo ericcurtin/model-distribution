@@ -15,7 +15,7 @@ import (
 func NewModel(path string) (*Model, error) {
 	// For vLLM, we support single model files or directories with multiple files
 	var modelFiles []string
-	
+
 	// Check if path is a directory or a single file
 	if strings.HasSuffix(path, "/") || isDirectory(path) {
 		// Handle directory case - collect relevant model files
@@ -31,7 +31,7 @@ func NewModel(path string) (*Model, error) {
 
 	layers := make([]v1.Layer, len(modelFiles))
 	diffIDs := make([]v1.Hash, len(modelFiles))
-	
+
 	for i, modelFile := range modelFiles {
 		layer, err := partial.NewLayer(modelFile, types.MediaTypeVLLM)
 		if err != nil {
@@ -64,13 +64,13 @@ func NewModel(path string) (*Model, error) {
 func configFromPath(path string) types.Config {
 	// Extract basic metadata from path/filename
 	// For vLLM models, we'll infer metadata from the path structure
-	
+
 	basename := filepath.Base(path)
-	
+
 	config := types.Config{
 		Format: types.FormatVLLM,
 	}
-	
+
 	// Try to extract model information from filename/path
 	if strings.Contains(strings.ToLower(basename), "7b") {
 		config.Parameters = "7B"
@@ -81,7 +81,7 @@ func configFromPath(path string) types.Config {
 	} else if strings.Contains(strings.ToLower(basename), "70b") {
 		config.Parameters = "70B"
 	}
-	
+
 	// Extract architecture if present in path
 	if strings.Contains(strings.ToLower(basename), "llama") {
 		config.Architecture = "llama"
@@ -90,7 +90,7 @@ func configFromPath(path string) types.Config {
 	} else if strings.Contains(strings.ToLower(basename), "gemma") {
 		config.Architecture = "gemma"
 	}
-	
+
 	return config
 }
 

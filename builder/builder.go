@@ -6,9 +6,9 @@ import (
 	"io"
 
 	"github.com/docker/model-distribution/internal/gguf"
-	"github.com/docker/model-distribution/internal/vllm"
 	"github.com/docker/model-distribution/internal/mutate"
 	"github.com/docker/model-distribution/internal/partial"
+	"github.com/docker/model-distribution/internal/vllm"
 	"github.com/docker/model-distribution/types"
 )
 

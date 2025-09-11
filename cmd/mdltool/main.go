@@ -497,7 +497,6 @@ func cmdGetPath(client *distribution.Client, args []string) int {
 
 	fmt.Fprintf(os.Stderr, "Error: no model files found\n")
 	return 1
-	return 0
 }
 
 func cmdRm(client *distribution.Client, args []string) int {

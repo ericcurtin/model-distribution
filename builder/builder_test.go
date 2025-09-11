@@ -146,7 +146,7 @@ func TestFromVLLM(t *testing.T) {
 	// Create a temporary vLLM model file for testing
 	tmpDir := t.TempDir()
 	modelPath := filepath.Join(tmpDir, "test-model.safetensors")
-	
+
 	// Create a dummy model file
 	if err := os.WriteFile(modelPath, []byte("dummy vllm model content"), 0644); err != nil {
 		t.Fatalf("Failed to create test model file: %v", err)
