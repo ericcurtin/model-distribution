@@ -7,6 +7,7 @@ import (
 type Model interface {
 	ID() (string, error)
 	GGUFPaths() ([]string, error)
+	SafeTensorsPaths() ([]string, error)
 	MMPROJPath() (string, error)
 	Config() (Config, error)
 	Tags() []string

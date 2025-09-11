@@ -114,6 +114,10 @@ func (m *Model) GGUFPaths() ([]string, error) {
 	return mdpartial.GGUFPaths(m)
 }
 
+func (m *Model) SafeTensorsPaths() ([]string, error) {
+	return mdpartial.SafeTensorsPaths(m)
+}
+
 func (m *Model) MMPROJPath() (string, error) {
 	return mdpartial.MMPROJPath(m)
 }

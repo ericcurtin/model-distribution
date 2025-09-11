@@ -133,6 +133,7 @@ func printUsage() {
 	fmt.Println("\nExamples:")
 	fmt.Println("  model-distribution-tool --store-path ./models pull registry.example.com/models/llama:v1.0")
 	fmt.Println("  model-distribution-tool package ./model.gguf registry.example.com/models/llama:v1.0 --licenses ./license1.txt --licenses ./license2.txt")
+	fmt.Println("  model-distribution-tool package ./model.safetensors registry.example.com/models/llama:v1.0 --licenses ./license1.txt")
 	fmt.Println("  model-distribution-tool package ./model.gguf registry.example.com/models/llama:v1.0 --mmproj ./model.mmproj")
 	fmt.Println("  model-distribution-tool push registry.example.com/models/llama:v1.0")
 	fmt.Println("  model-distribution-tool list")
@@ -176,7 +177,8 @@ func cmdPackage(args []string) int {
 	fs.StringVar(&tag, "tag", "", "Push model to the given registry tag")
 
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: model-distribution-tool package [OPTIONS] <path-to-gguf>\n\n")
+		fmt.Fprintf(os.Stderr, "Usage: model-distribution-tool package [OPTIONS] <path-to-model>\n\n")
+		fmt.Fprintf(os.Stderr, "Supported model formats: .gguf, .safetensors\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		fs.PrintDefaults()
 	}
@@ -207,9 +209,12 @@ func cmdPackage(args []string) int {
 		return 1
 	}
 
-	// Check if source file is a GGUF file
-	if !strings.HasSuffix(strings.ToLower(source), ".gguf") {
-		fmt.Fprintf(os.Stderr, "Warning: source file does not have .gguf extension: %s\n", source)
+	// Check if source file is a supported model format
+	isGGUF := strings.HasSuffix(strings.ToLower(source), ".gguf")
+	isSafeTensors := strings.HasSuffix(strings.ToLower(source), ".safetensors")
+	
+	if !isGGUF && !isSafeTensors {
+		fmt.Fprintf(os.Stderr, "Warning: source file does not have .gguf or .safetensors extension: %s\n", source)
 		fmt.Fprintf(os.Stderr, "Continuing anyway, but this may cause issues.\n")
 	}
 
@@ -242,17 +247,27 @@ func cmdPackage(args []string) int {
 		}
 	}
 
-	// Create image with layer
-	builder, err := builder.FromGGUF(source)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating model from gguf: %v\n", err)
-		return 1
+	// Create image with layer based on file type
+	var bldr *builder.Builder
+	if isSafeTensors {
+		bldr, err = builder.FromSafeTensors(source)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating model from safetensors: %v\n", err)
+			return 1
+		}
+	} else {
+		// Default to GGUF or try GGUF if extension is unknown
+		bldr, err = builder.FromGGUF(source)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating model from gguf: %v\n", err)
+			return 1
+		}
 	}
 
 	// Add all license files as layers
 	for _, path := range licensePaths {
 		fmt.Println("Adding license file:", path)
-		builder, err = builder.WithLicense(path)
+		bldr, err = bldr.WithLicense(path)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error adding license layer for %s: %v\n", path, err)
 			return 1
@@ -261,12 +276,12 @@ func cmdPackage(args []string) int {
 
 	if contextSize > 0 {
 		fmt.Println("Setting context size:", contextSize)
-		builder = builder.WithContextSize(contextSize)
+		bldr = bldr.WithContextSize(contextSize)
 	}
 
 	if mmproj != "" {
 		fmt.Println("Adding multimodal projector file:", mmproj)
-		builder, err = builder.WithMultimodalProjector(mmproj)
+		bldr, err = bldr.WithMultimodalProjector(mmproj)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error adding multimodal projector layer for %s: %v\n", mmproj, err)
 			return 1
@@ -274,7 +289,7 @@ func cmdPackage(args []string) int {
 	}
 
 	// Push the image
-	if err := builder.Build(ctx, target, os.Stdout); err != nil {
+	if err := bldr.Build(ctx, target, os.Stdout); err != nil {
 		fmt.Fprintf(os.Stderr, "Error writing model to registry: %v\n", err)
 		return 1
 	}
@@ -373,9 +388,17 @@ func cmdList(client *distribution.Client, args []string) int {
 		fmt.Printf("   Tags: %s\n", strings.Join(model.Tags(), ", "))
 
 		ggufPaths, err := model.GGUFPaths()
-		if err == nil {
+		if err == nil && len(ggufPaths) > 0 {
 			fmt.Print("   GGUF Paths:\n")
 			for _, path := range ggufPaths {
+				fmt.Printf("\t%s\n", path)
+			}
+		}
+		
+		safetensorsPaths, err := model.SafeTensorsPaths()
+		if err == nil && len(safetensorsPaths) > 0 {
+			fmt.Print("   SafeTensors Paths:\n")
+			for _, path := range safetensorsPaths {
 				fmt.Printf("\t%s\n", path)
 			}
 		}
@@ -408,13 +431,19 @@ func cmdGet(client *distribution.Client, args []string) int {
 	fmt.Printf("ID: %s\n", id)
 
 	ggufPaths, err := model.GGUFPaths()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error getting gguf path %v\n", err)
-		return 1
+	if err == nil && len(ggufPaths) > 0 {
+		fmt.Print("   GGUF Paths:\n")
+		for _, path := range ggufPaths {
+			fmt.Printf("\t%s\n", path)
+		}
 	}
-	fmt.Print("   GGUF Paths:\n")
-	for _, path := range ggufPaths {
-		fmt.Printf("\t%s\n", path)
+	
+	safetensorsPaths, err := model.SafeTensorsPaths()
+	if err == nil && len(safetensorsPaths) > 0 {
+		fmt.Print("   SafeTensors Paths:\n")
+		for _, path := range safetensorsPaths {
+			fmt.Printf("\t%s\n", path)
+		}
 	}
 
 	cfg, err := model.Config()

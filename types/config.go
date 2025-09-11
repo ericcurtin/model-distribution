@@ -17,13 +17,17 @@ const (
 	// MediaTypeGGUF indicates a file in GGUF version 3 format, containing a tensor model.
 	MediaTypeGGUF = types.MediaType("application/vnd.docker.ai.gguf.v3")
 
+	// MediaTypeSafeTensors indicates a file in SafeTensors version 3 format, containing a tensor model.
+	MediaTypeSafeTensors = types.MediaType("application/vnd.docker.ai.safetensors.v3")
+
 	// MediaTypeLicense indicates a plain text file containing a license
 	MediaTypeLicense = types.MediaType("application/vnd.docker.ai.license")
 
 	// MediaTypeMultimodalProjector indicates a Multimodal projector file
 	MediaTypeMultimodalProjector = types.MediaType("application/vnd.docker.ai.mmproj")
 
-	FormatGGUF = Format("gguf")
+	FormatGGUF        = Format("gguf")
+	FormatSafeTensors = Format("safetensors")
 )
 
 type Format string

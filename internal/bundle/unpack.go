@@ -14,8 +14,8 @@ func Unpack(dir string, model types.Model) (*Bundle, error) {
 	bundle := &Bundle{
 		dir: dir,
 	}
-	if err := unpackGGUFs(bundle, model); err != nil {
-		return nil, fmt.Errorf("add GGUF file(s) to runtime bundle: %w", err)
+	if err := unpackModelFiles(bundle, model); err != nil {
+		return nil, fmt.Errorf("add model file(s) to runtime bundle: %w", err)
 	}
 	if err := unpackMultiModalProjector(bundle, model); err != nil {
 		return nil, fmt.Errorf("add multi-model projector file to runtime bundle: %w", err)
@@ -43,18 +43,29 @@ func unpackRuntimeConfig(bundle *Bundle, mdl types.Model) error {
 	return nil
 }
 
-func unpackGGUFs(bundle *Bundle, mdl types.Model) error {
+func unpackModelFiles(bundle *Bundle, mdl types.Model) error {
+	// Try GGUF files first
 	ggufPaths, err := mdl.GGUFPaths()
-	if err != nil {
-		return fmt.Errorf("get GGUF files for model: %w", err)
+	if err == nil && len(ggufPaths) > 0 {
+		return unpackGGUFs(bundle, ggufPaths)
 	}
+	
+	// Try SafeTensors files
+	safetensorsPaths, err := mdl.SafeTensorsPaths()
+	if err == nil && len(safetensorsPaths) > 0 {
+		return unpackSafeTensors(bundle, safetensorsPaths)
+	}
+	
+	return fmt.Errorf("no supported model files found (GGUF or SafeTensors)")
+}
 
+func unpackGGUFs(bundle *Bundle, ggufPaths []string) error {
 	if len(ggufPaths) == 1 {
 		if err := unpackFile(filepath.Join(bundle.dir, "model.gguf"), ggufPaths[0]); err != nil {
 			return err
 		}
-		bundle.ggufFile = "model.gguf"
-		return err
+		bundle.modelFile = "model.gguf"
+		return nil
 	}
 
 	for i := range ggufPaths {
@@ -62,7 +73,27 @@ func unpackGGUFs(bundle *Bundle, mdl types.Model) error {
 		if err := unpackFile(filepath.Join(bundle.dir, name), ggufPaths[i]); err != nil {
 			return err
 		}
-		bundle.ggufFile = name
+		bundle.modelFile = name
+	}
+
+	return nil
+}
+
+func unpackSafeTensors(bundle *Bundle, safetensorsPaths []string) error {
+	if len(safetensorsPaths) == 1 {
+		if err := unpackFile(filepath.Join(bundle.dir, "model.safetensors"), safetensorsPaths[0]); err != nil {
+			return err
+		}
+		bundle.modelFile = "model.safetensors"
+		return nil
+	}
+
+	for i := range safetensorsPaths {
+		name := fmt.Sprintf("model-%05d-of-%05d.safetensors", i+1, len(safetensorsPaths))
+		if err := unpackFile(filepath.Join(bundle.dir, name), safetensorsPaths[i]); err != nil {
+			return err
+		}
+		bundle.modelFile = name
 	}
 
 	return nil
