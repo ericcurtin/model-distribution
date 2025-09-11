@@ -133,6 +133,7 @@ func printUsage() {
 	fmt.Println("\nExamples:")
 	fmt.Println("  model-distribution-tool --store-path ./models pull registry.example.com/models/llama:v1.0")
 	fmt.Println("  model-distribution-tool package ./model.gguf registry.example.com/models/llama:v1.0 --licenses ./license1.txt --licenses ./license2.txt")
+	fmt.Println("  model-distribution-tool package ./model.safetensors registry.example.com/models/llama:v1.0 --licenses ./license1.txt")
 	fmt.Println("  model-distribution-tool package ./model.gguf registry.example.com/models/llama:v1.0 --mmproj ./model.mmproj")
 	fmt.Println("  model-distribution-tool push registry.example.com/models/llama:v1.0")
 	fmt.Println("  model-distribution-tool list")
@@ -176,7 +177,8 @@ func cmdPackage(args []string) int {
 	fs.StringVar(&tag, "tag", "", "Push model to the given registry tag")
 
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: model-distribution-tool package [OPTIONS] <path-to-gguf>\n\n")
+		fmt.Fprintf(os.Stderr, "Usage: model-distribution-tool package [OPTIONS] <path-to-model>\n\n")
+		fmt.Fprintf(os.Stderr, "Supports GGUF (.gguf) and vLLM (.safetensors, .bin) model formats.\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		fs.PrintDefaults()
 	}
@@ -207,10 +209,17 @@ func cmdPackage(args []string) int {
 		return 1
 	}
 
-	// Check if source file is a GGUF file
-	if !strings.HasSuffix(strings.ToLower(source), ".gguf") {
-		fmt.Fprintf(os.Stderr, "Warning: source file does not have .gguf extension: %s\n", source)
-		fmt.Fprintf(os.Stderr, "Continuing anyway, but this may cause issues.\n")
+	// Detect file format based on extension
+	var isGGUF, isVLLM bool
+	lowerSource := strings.ToLower(source)
+	if strings.HasSuffix(lowerSource, ".gguf") {
+		isGGUF = true
+	} else if strings.HasSuffix(lowerSource, ".safetensors") || strings.HasSuffix(lowerSource, ".bin") {
+		isVLLM = true
+	} else {
+		fmt.Fprintf(os.Stderr, "Warning: source file does not have a recognized extension (.gguf, .safetensors, .bin): %s\n", source)
+		fmt.Fprintf(os.Stderr, "Assuming GGUF format and continuing anyway, but this may cause issues.\n")
+		isGGUF = true // Default to GGUF for backward compatibility
 	}
 
 	// Prepare registry client options
@@ -242,17 +251,31 @@ func cmdPackage(args []string) int {
 		}
 	}
 
-	// Create image with layer
-	builder, err := builder.FromGGUF(source)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating model from gguf: %v\n", err)
+	// Create image with layer based on detected format
+	var modelBuilder *builder.Builder
+	if isGGUF {
+		fmt.Println("Detected GGUF format")
+		modelBuilder, err = builder.FromGGUF(source)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating model from GGUF: %v\n", err)
+			return 1
+		}
+	} else if isVLLM {
+		fmt.Println("Detected vLLM format")
+		modelBuilder, err = builder.FromVLLM(source)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating model from vLLM: %v\n", err)
+			return 1
+		}
+	} else {
+		fmt.Fprintf(os.Stderr, "Error: unsupported model format\n")
 		return 1
 	}
 
 	// Add all license files as layers
 	for _, path := range licensePaths {
 		fmt.Println("Adding license file:", path)
-		builder, err = builder.WithLicense(path)
+		modelBuilder, err = modelBuilder.WithLicense(path)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error adding license layer for %s: %v\n", path, err)
 			return 1
@@ -261,12 +284,12 @@ func cmdPackage(args []string) int {
 
 	if contextSize > 0 {
 		fmt.Println("Setting context size:", contextSize)
-		builder = builder.WithContextSize(contextSize)
+		modelBuilder = modelBuilder.WithContextSize(contextSize)
 	}
 
 	if mmproj != "" {
 		fmt.Println("Adding multimodal projector file:", mmproj)
-		builder, err = builder.WithMultimodalProjector(mmproj)
+		modelBuilder, err = modelBuilder.WithMultimodalProjector(mmproj)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error adding multimodal projector layer for %s: %v\n", mmproj, err)
 			return 1
@@ -274,7 +297,7 @@ func cmdPackage(args []string) int {
 	}
 
 	// Push the image
-	if err := builder.Build(ctx, target, os.Stdout); err != nil {
+	if err := modelBuilder.Build(ctx, target, os.Stdout); err != nil {
 		fmt.Fprintf(os.Stderr, "Error writing model to registry: %v\n", err)
 		return 1
 	}
@@ -373,9 +396,17 @@ func cmdList(client *distribution.Client, args []string) int {
 		fmt.Printf("   Tags: %s\n", strings.Join(model.Tags(), ", "))
 
 		ggufPaths, err := model.GGUFPaths()
-		if err == nil {
+		if err == nil && len(ggufPaths) > 0 {
 			fmt.Print("   GGUF Paths:\n")
 			for _, path := range ggufPaths {
+				fmt.Printf("\t%s\n", path)
+			}
+		}
+
+		vllmPaths, err := model.VLLMPaths()
+		if err == nil && len(vllmPaths) > 0 {
+			fmt.Print("   vLLM Paths:\n")
+			for _, path := range vllmPaths {
 				fmt.Printf("\t%s\n", path)
 			}
 		}
@@ -408,13 +439,19 @@ func cmdGet(client *distribution.Client, args []string) int {
 	fmt.Printf("ID: %s\n", id)
 
 	ggufPaths, err := model.GGUFPaths()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error getting gguf path %v\n", err)
-		return 1
+	if err == nil && len(ggufPaths) > 0 {
+		fmt.Print("   GGUF Paths:\n")
+		for _, path := range ggufPaths {
+			fmt.Printf("\t%s\n", path)
+		}
 	}
-	fmt.Print("   GGUF Paths:\n")
-	for _, path := range ggufPaths {
-		fmt.Printf("\t%s\n", path)
+
+	vllmPaths, err := model.VLLMPaths()
+	if err == nil && len(vllmPaths) > 0 {
+		fmt.Print("   vLLM Paths:\n")
+		for _, path := range vllmPaths {
+			fmt.Printf("\t%s\n", path)
+		}
 	}
 
 	cfg, err := model.Config()
@@ -444,14 +481,22 @@ func cmdGetPath(client *distribution.Client, args []string) int {
 		return 1
 	}
 
-	modelPaths, err := model.GGUFPaths()
-	if err != nil || len(modelPaths) == 0 {
-		fmt.Fprintf(os.Stderr, "Error getting model path: %v\n", err)
-		return 1
+	// Try to get GGUF paths first
+	ggufPaths, err := model.GGUFPaths()
+	if err == nil && len(ggufPaths) > 0 {
+		fmt.Println(ggufPaths[0])
+		return 0
 	}
 
-	fmt.Println(modelPaths[0])
-	return 0
+	// Try to get vLLM paths if GGUF paths are not available
+	vllmPaths, err := model.VLLMPaths()
+	if err == nil && len(vllmPaths) > 0 {
+		fmt.Println(vllmPaths[0])
+		return 0
+	}
+
+	fmt.Fprintf(os.Stderr, "Error: no model files found\n")
+	return 1
 }
 
 func cmdRm(client *distribution.Client, args []string) int {

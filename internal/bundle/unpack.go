@@ -17,6 +17,9 @@ func Unpack(dir string, model types.Model) (*Bundle, error) {
 	if err := unpackGGUFs(bundle, model); err != nil {
 		return nil, fmt.Errorf("add GGUF file(s) to runtime bundle: %w", err)
 	}
+	if err := unpackVLLMs(bundle, model); err != nil {
+		return nil, fmt.Errorf("add vLLM file(s) to runtime bundle: %w", err)
+	}
 	if err := unpackMultiModalProjector(bundle, model); err != nil {
 		return nil, fmt.Errorf("add multi-model projector file to runtime bundle: %w", err)
 	}
@@ -63,6 +66,37 @@ func unpackGGUFs(bundle *Bundle, mdl types.Model) error {
 			return err
 		}
 		bundle.ggufFile = name
+	}
+
+	return nil
+}
+
+func unpackVLLMs(bundle *Bundle, mdl types.Model) error {
+	vllmPaths, err := mdl.VLLMPaths()
+	if err != nil {
+		return fmt.Errorf("get vLLM files for model: %w", err)
+	}
+
+	if len(vllmPaths) == 0 {
+		return nil // No vLLM files to unpack
+	}
+
+	if len(vllmPaths) == 1 {
+		if err := unpackFile(filepath.Join(bundle.dir, "model.safetensors"), vllmPaths[0]); err != nil {
+			return err
+		}
+		bundle.vllmFile = "model.safetensors"
+		return nil
+	}
+
+	for i := range vllmPaths {
+		name := fmt.Sprintf("model-%05d-of-%05d.safetensors", i+1, len(vllmPaths))
+		if err := unpackFile(filepath.Join(bundle.dir, name), vllmPaths[i]); err != nil {
+			return err
+		}
+		if i == 0 {
+			bundle.vllmFile = name // Set to first file for primary reference
+		}
 	}
 
 	return nil

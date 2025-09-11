@@ -17,6 +17,9 @@ const (
 	// MediaTypeGGUF indicates a file in GGUF version 3 format, containing a tensor model.
 	MediaTypeGGUF = types.MediaType("application/vnd.docker.ai.gguf.v3")
 
+	// MediaTypeVLLM indicates a file in vLLM format, containing a tensor model for vLLM inference.
+	MediaTypeVLLM = types.MediaType("application/vnd.docker.ai.vllm.v1")
+
 	// MediaTypeLicense indicates a plain text file containing a license
 	MediaTypeLicense = types.MediaType("application/vnd.docker.ai.license")
 
@@ -24,6 +27,7 @@ const (
 	MediaTypeMultimodalProjector = types.MediaType("application/vnd.docker.ai.mmproj")
 
 	FormatGGUF = Format("gguf")
+	FormatVLLM = Format("vllm")
 )
 
 type Format string

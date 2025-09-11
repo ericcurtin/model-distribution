@@ -11,6 +11,7 @@ type Bundle struct {
 	dir           string
 	mmprojPath    string
 	ggufFile      string // path to GGUF file (first shard when model is split among files)
+	vllmFile      string // path to vLLM model file
 	runtimeConfig types.Config
 }
 
@@ -26,6 +27,14 @@ func (b *Bundle) GGUFPath() string {
 		return ""
 	}
 	return filepath.Join(b.dir, b.ggufFile)
+}
+
+// VLLMPath returns the path to vLLM model file or "" if none is present.
+func (b *Bundle) VLLMPath() string {
+	if b.vllmFile == "" {
+		return ""
+	}
+	return filepath.Join(b.dir, b.vllmFile)
 }
 
 // MMPROJPath returns the path to a multi-modal projector file or "" if none is present.
