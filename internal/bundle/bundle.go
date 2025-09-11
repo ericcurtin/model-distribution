@@ -10,7 +10,7 @@ import (
 type Bundle struct {
 	dir           string
 	mmprojPath    string
-	ggufFile      string // path to GGUF file (first shard when model is split among files)
+	modelFile     string // path to model file (GGUF or SafeTensors)
 	runtimeConfig types.Config
 }
 
@@ -19,13 +19,14 @@ func (b *Bundle) RootDir() string {
 	return b.dir
 }
 
-// GGUFPath return the path to model GGUF file. If the model is sharded this will be the path to the first shard,
-// containing metadata headers.
+// GGUFPath return the path to model file. If the model is sharded this will be the path to the first shard,
+// containing metadata headers. Note: despite the name, this returns the path for any model format (GGUF or SafeTensors)
+// for backward compatibility.
 func (b *Bundle) GGUFPath() string {
-	if b.ggufFile == "" {
+	if b.modelFile == "" {
 		return ""
 	}
-	return filepath.Join(b.dir, b.ggufFile)
+	return filepath.Join(b.dir, b.modelFile)
 }
 
 // MMPROJPath returns the path to a multi-modal projector file or "" if none is present.

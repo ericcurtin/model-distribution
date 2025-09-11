@@ -4,7 +4,7 @@ A library and CLI tool for distributing models using container registries.
 
 ## Overview
 
-Model Distribution is a Go library and CLI tool that allows you to package, push, pull, and manage models using container registries. It provides a simple API and command-line interface for working with models in GGUF format.
+Model Distribution is a Go library and CLI tool that allows you to package, push, pull, and manage models using container registries. It provides a simple API and command-line interface for working with models in GGUF and SafeTensors formats.
 
 ## Features
 
@@ -27,8 +27,11 @@ make build
 # Pull a model from a registry
 ./bin/model-distribution-tool pull registry.example.com/models/llama:v1.0
 
-# Package a model and push to a registry
+# Package a GGUF model and push to a registry
 ./bin/model-distribution-tool package --tag registry.example.com/models/llama:v1.0 ./model.gguf
+
+# Package a SafeTensors model and push to a registry  
+./bin/model-distribution-tool package --tag registry.example.com/models/llama:v1.0 ./model.safetensors
 
 # Package a sharded model and push to a registry
 ./bin/model-distribution-tool package --tag registry.example.com/models/example ./model-00001-of-00007.gguf
@@ -42,8 +45,9 @@ make build
 # Package a model with a multimodal projector file and push to a registry
 ./bin/model-distribution-tool package --mmproj ./model.mmproj --tag registry.example.com/models/llama:v1.0 ./model.gguf
 
-# Package a model and output the result to a file
+# Package a model and output the result to a file (supports both GGUF and SafeTensors)
 ./bin/model-distribution-tool package --file ./model.tar ./model.gguf
+./bin/model-distribution-tool package --file ./model.tar ./model.safetensors
 
 # Load a model from an archive into the local store
 ./bin/model-distribution-tool load ./model.tar

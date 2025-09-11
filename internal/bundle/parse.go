@@ -14,7 +14,7 @@ func Parse(rootDir string) (*Bundle, error) {
 	if fi, err := os.Stat(rootDir); err != nil || !fi.IsDir() {
 		return nil, fmt.Errorf("inspect bundle root dir: %w", err)
 	}
-	ggufPath, err := findGGUFFile(rootDir)
+	modelPath, err := findModelFile(rootDir)
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +29,7 @@ func Parse(rootDir string) (*Bundle, error) {
 	return &Bundle{
 		dir:           rootDir,
 		mmprojPath:    mmprojPath,
-		ggufFile:      ggufPath,
+		modelFile:     modelPath,
 		runtimeConfig: cfg,
 	}, nil
 }
@@ -47,15 +47,20 @@ func parseRuntimeConfig(rootDir string) (types.Config, error) {
 	return cfg, nil
 }
 
-func findGGUFFile(rootDir string) (string, error) {
+func findModelFile(rootDir string) (string, error) {
+	// Try to find GGUF files first
 	ggufs, err := filepath.Glob(filepath.Join(rootDir, "[^.]*.gguf"))
-	if err != nil {
-		return "", fmt.Errorf("find gguf files: %w", err)
+	if err == nil && len(ggufs) > 0 {
+		return filepath.Base(ggufs[0]), nil
 	}
-	if len(ggufs) == 0 {
-		return "", fmt.Errorf("no GGUF files found in bundle directory")
+	
+	// Try to find SafeTensors files
+	safetensors, err := filepath.Glob(filepath.Join(rootDir, "[^.]*.safetensors"))
+	if err == nil && len(safetensors) > 0 {
+		return filepath.Base(safetensors[0]), nil
 	}
-	return filepath.Base(ggufs[0]), nil
+	
+	return "", fmt.Errorf("no supported model files found in bundle directory (GGUF or SafeTensors)")
 }
 
 func findMultiModalProjectorFile(rootDir string) (string, error) {
