@@ -9,6 +9,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/docker/model-distribution/internal/naming"
 	"github.com/docker/model-distribution/internal/progress"
 	"github.com/docker/model-distribution/internal/store"
 	"github.com/docker/model-distribution/registry"
@@ -33,12 +34,13 @@ type Option func(*options)
 
 // options holds the configuration for a new Client
 type options struct {
-	storeRootPath string
-	logger        *logrus.Entry
-	transport     http.RoundTripper
-	userAgent     string
-	username      string
-	password      string
+	storeRootPath      string
+	logger             *logrus.Entry
+	transport          http.RoundTripper
+	userAgent          string
+	username           string
+	password           string
+	defaultRegistry    string
 }
 
 // WithStoreRootPath sets the store root path
@@ -87,6 +89,15 @@ func WithRegistryAuth(username, password string) Option {
 	}
 }
 
+// WithDefaultRegistry sets the default registry namespace for model references
+func WithDefaultRegistry(registry string) Option {
+	return func(o *options) {
+		if registry != "" {
+			o.defaultRegistry = registry
+		}
+	}
+}
+
 func defaultOptions() *options {
 	return &options{
 		logger:    logrus.NewEntry(logrus.StandardLogger()),
@@ -122,6 +133,13 @@ func NewClient(opts ...Option) (*Client, error) {
 	// Add auth if credentials are provided
 	if options.username != "" && options.password != "" {
 		registryOpts = append(registryOpts, registry.WithAuthConfig(options.username, options.password))
+	}
+
+	// Add default registry namespace if provided
+	if options.defaultRegistry != "" {
+		registryOpts = append(registryOpts, registry.WithDefaultNamespace(options.defaultRegistry))
+		// Also set it globally for store operations
+		naming.SetDefaultNamespace(options.defaultRegistry)
 	}
 
 	options.logger.Infoln("Successfully initialized store")
