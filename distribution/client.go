@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 
@@ -132,8 +133,29 @@ func NewClient(opts ...Option) (*Client, error) {
 	}, nil
 }
 
+func addDefaultNamespace(model string) string {
+	// Don't add namespace if already contains "/"
+	if strings.Contains(model, "/") {
+		return model
+	}
+
+	// Don't add namespace to SHA256 digests or other hash-like IDs
+	if strings.HasPrefix(model, "sha256:") {
+		return model
+	}
+
+	// Only add namespace to simple model names without registry/tag notation
+	// If it contains ":" it might be repo:tag format which should be left alone
+	if strings.Contains(model, ":") {
+		return model
+	}
+
+	return "ai/" + model
+}
+
 // PullModel pulls a model from a registry and returns the local file path
 func (c *Client) PullModel(ctx context.Context, reference string, progressWriter io.Writer) error {
+	reference = addDefaultNamespace(reference)
 	c.log.Infoln("Starting model pull:", reference)
 
 	remoteModel, err := c.registry.Model(ctx, reference)
@@ -268,6 +290,7 @@ func (c *Client) ListModels() ([]types.Model, error) {
 
 // GetModel returns a model by reference
 func (c *Client) GetModel(reference string) (types.Model, error) {
+	reference = addDefaultNamespace(reference)
 	c.log.Infoln("Getting model by reference:", reference)
 	model, err := c.store.Read(reference)
 	if err != nil {
@@ -280,6 +303,7 @@ func (c *Client) GetModel(reference string) (types.Model, error) {
 
 // IsModelInStore checks if a model with the given reference is in the local store
 func (c *Client) IsModelInStore(reference string) (bool, error) {
+	reference = addDefaultNamespace(reference)
 	c.log.Infoln("Checking model by reference:", reference)
 	if _, err := c.store.Read(reference); errors.Is(err, ErrModelNotFound) {
 		return false, nil
@@ -298,6 +322,7 @@ type DeleteModelResponse []DeleteModelAction
 
 // DeleteModel deletes a model
 func (c *Client) DeleteModel(reference string, force bool) (*DeleteModelResponse, error) {
+	reference = addDefaultNamespace(reference)
 	mdl, err := c.store.Read(reference)
 	if err != nil {
 		return &DeleteModelResponse{}, err
