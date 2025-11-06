@@ -9,6 +9,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/docker/model-distribution/distribution/reference/files"
 	"github.com/docker/model-distribution/internal/progress"
 	"github.com/docker/model-distribution/internal/store"
 	"github.com/docker/model-distribution/registry"
@@ -134,9 +135,11 @@ func NewClient(opts ...Option) (*Client, error) {
 
 // PullModel pulls a model from a registry and returns the local file path
 func (c *Client) PullModel(ctx context.Context, reference string, progressWriter io.Writer) error {
-	c.log.Infoln("Starting model pull:", reference)
+	// Normalize the reference to add default officialRepoPrefix if needed
+	normalizedRef := files.NormalizeReference(reference)
+	c.log.Infoln("Starting model pull:", normalizedRef)
 
-	remoteModel, err := c.registry.Model(ctx, reference)
+	remoteModel, err := c.registry.Model(ctx, normalizedRef)
 	if err != nil {
 		return fmt.Errorf("reading model from registry: %w", err)
 	}
@@ -157,7 +160,7 @@ func (c *Client) PullModel(ctx context.Context, reference string, progressWriter
 	// Check if model exists in local store
 	localModel, err := c.store.Read(remoteDigest.String())
 	if err == nil {
-		c.log.Infoln("Model found in local store:", reference)
+		c.log.Infoln("Model found in local store:", normalizedRef)
 		cfg, err := localModel.Config()
 		if err != nil {
 			return fmt.Errorf("getting cached model config: %w", err)
@@ -170,13 +173,13 @@ func (c *Client) PullModel(ctx context.Context, reference string, progressWriter
 			progressWriter = nil
 		}
 
-		// Ensure model has the correct tag
+		// Ensure model has the correct tag - use original reference for tagging
 		if err := c.store.AddTags(remoteDigest.String(), []string{reference}); err != nil {
 			return fmt.Errorf("tagging model: %w", err)
 		}
 		return nil
 	} else {
-		c.log.Infoln("Model not found in local store, pulling from remote:", reference)
+		c.log.Infoln("Model not found in local store, pulling from remote:", normalizedRef)
 	}
 
 	// Model doesn't exist in local store or digests don't match, pull from remote
@@ -355,8 +358,11 @@ func (c *Client) Tag(source string, target string) error {
 
 // PushModel pushes a tagged model from the content store to the registry.
 func (c *Client) PushModel(ctx context.Context, tag string, progressWriter io.Writer) (err error) {
+	// Normalize the tag to add default officialRepoPrefix if needed
+	normalizedTag := files.NormalizeReference(tag)
+
 	// Parse the tag
-	target, err := c.registry.NewTarget(tag)
+	target, err := c.registry.NewTarget(normalizedTag)
 	if err != nil {
 		return fmt.Errorf("new tag: %w", err)
 	}
@@ -368,16 +374,16 @@ func (c *Client) PushModel(ctx context.Context, tag string, progressWriter io.Wr
 	}
 
 	// Push the model
-	c.log.Infoln("Pushing model:", tag)
+	c.log.Infoln("Pushing model:", normalizedTag)
 	if err := target.Write(ctx, mdl, progressWriter); err != nil {
-		c.log.Errorln("Failed to push image:", err, "reference:", tag)
+		c.log.Errorln("Failed to push image:", err, "reference:", normalizedTag)
 		if writeErr := progress.WriteError(progressWriter, fmt.Sprintf("Error: %s", err.Error())); writeErr != nil {
 			c.log.Warnf("Failed to write error message: %v", writeErr)
 		}
 		return fmt.Errorf("pushing image: %w", err)
 	}
 
-	c.log.Infoln("Successfully pushed model:", tag)
+	c.log.Infoln("Successfully pushed model:", normalizedTag)
 	if err := progress.WriteSuccess(progressWriter, "Model pushed successfully"); err != nil {
 		c.log.Warnf("Failed to write success message: %v", err)
 	}
